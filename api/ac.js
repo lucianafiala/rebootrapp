@@ -16,41 +16,38 @@ export default async function handler(req, res) {
   }
  
   try {
-    // Step 1: Create or update contact
+    let contactId;
+ 
+    // Step 1: Try to create contact
     const contactRes = await fetch(`${AC_URL}/api/3/contacts`, {
       method: 'POST',
-      headers: {
-        'Api-Token': AC_KEY,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Api-Token': AC_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact: { email } })
     });
  
     const contactData = await contactRes.json();
-    console.log('AC contact response:', JSON.stringify(contactData));
+    contactId = contactData?.contact?.id;
  
-    // Handle both new contact and duplicate (existing contact)
-    const contactId = contactData?.contact?.id || contactData?.contacts?.[0]?.id;
- 
+    // Step 2: If duplicate, search for existing contact
     if (!contactId) {
-      console.error('No contact ID in response:', JSON.stringify(contactData));
-      throw new Error('No contact ID returned');
+      const searchRes = await fetch(`${AC_URL}/api/3/contacts?email=${encodeURIComponent(email)}`, {
+        method: 'GET',
+        headers: { 'Api-Token': AC_KEY }
+      });
+      const searchData = await searchRes.json();
+      contactId = searchData?.contacts?.[0]?.id;
     }
  
-    // Step 2: Add contact to list
-    const listRes = await fetch(`${AC_URL}/api/3/contactLists`, {
+    if (!contactId) throw new Error('Could not find or create contact');
+ 
+    // Step 3: Add contact to list
+    await fetch(`${AC_URL}/api/3/contactLists`, {
       method: 'POST',
-      headers: {
-        'Api-Token': AC_KEY,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Api-Token': AC_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contactList: { list: AC_LIST, contact: contactId, status: 1 }
       })
     });
- 
-    const listData = await listRes.json();
-    console.log('AC list response:', JSON.stringify(listData));
  
     return res.status(200).json({ success: true });
   } catch (err) {
